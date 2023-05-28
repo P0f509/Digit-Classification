@@ -1,24 +1,13 @@
 import numpy as np
 import cv2
-from scipy.special import softmax
-from scipy.special import expit
-import copy
+#import copy
+from scipy.special import softmax, expit
 from keras.datasets import mnist
 #from matplotlib import pyplot
 
 '''
     Activation & Error Functions
 '''
-
-def sigmoid(x):
-	return 1.0 / (1.0 + np.exp(-x))
-    #return np.where(x >= 0, 1 / (1 + np.exp(-x)), np.exp(x) / (1 + np.exp(x)))
-
-def sigmoid_prime(x):
-	# z = sigmoid(x)
-    z = expit(x)
-    return z * (1 - z)
-
 
 def identity(x):
     return x
@@ -27,22 +16,19 @@ def identity_prime(x):
     return 1
 
 
+def sigmoid(x):
+	return expit(x)
+
+def sigmoid_prime(x):
+    z = expit(x)
+    return z * (1 - z)
+
+
 def relu(x):
     return np.maximum(0, x)
 
 def relu_prime(x):
     return (x > 0).astype(x.dtype)
-
-'''
-def softmax(x):
-    return np.exp(x) / np.sum(np.exp(x))
-
-'''
-
-def softmax_prime(x):
-    s = softmax(x) 
-    si_sj = - s * s.reshape(len(x), 1)
-    return np.diag(s) + si_sj  
 
 
 def sum_of_square(output, target):
@@ -278,10 +264,10 @@ def main():
         
     #inizialize Neural Network
     NN = NeuralNetwork(cross_entropy_softmax, cross_entropy_softmax_prime)
-    layer1 = ConnectionLayer(img_scale * img_scale, 30)
-    layer2 = ActivationLayer(30, expit, sigmoid_prime)
-    layer3 = ConnectionLayer(30, 10)
-    layer4 = ActivationLayer(10, softmax, softmax_prime)
+    layer1 = ConnectionLayer(img_scale * img_scale, 20)
+    layer2 = ActivationLayer(20, sigmoid, sigmoid_prime)
+    layer3 = ConnectionLayer(20, 10)
+    layer4 = ActivationLayer(10, sigmoid, sigmoid_prime)
 
     NN.add_layer(layer1)
     NN.add_layer(layer2)
@@ -291,7 +277,8 @@ def main():
     #start learning
     NN.learn(train_data[0:10000], train_labels[0:10000], 1000, 0.1)
 
-    #test with a random samples
+    #test with random samples
+    np.set_printoptions(suppress=True, precision=2)
     print("PREDICTED:", NN.forward_propagation(train_data[55655]))
     print("LABEL:", train_labels[55655])
     print("PREDICTED:", NN.forward_propagation(train_data[234]))
