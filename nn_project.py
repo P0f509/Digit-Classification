@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 #import copy
 from scipy.special import softmax, expit
+from sklearn.utils import shuffle
 from keras.datasets import mnist
 #from matplotlib import pyplot
 
@@ -261,6 +262,20 @@ def main():
     #encode labels in one-hot encoding
     train_labels = encode_labels(train_y)
     test_labels = encode_labels(test_y)
+
+    #shuffle data 
+    train_data, train_labels = shuffle(train_data, train_labels)
+
+    #divide data into training & validation
+    ratio = 0.8
+    train_len = int(ratio * len(train_data))
+
+    valid_data = train_data[train_len:]
+    valid_labels = train_labels[train_len:]
+
+    train_data = train_data[0:train_len]
+    train_labels = train_labels[0:train_len]
+    
         
     #inizialize Neural Network
     NN = NeuralNetwork(cross_entropy_softmax, cross_entropy_softmax_prime)
