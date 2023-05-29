@@ -196,7 +196,7 @@ class NeuralNetwork:
             self.layers[i].update_weights(derivates[j], deltas[j], lr)
 
  
-    def learn(self, train_X, train_Y, val_X, val_Y, epoches, lr):
+    def learn(self, train_X, train_Y, val_X, val_Y, epoches, lr, mod='B'):
 
         if len(self.layers) < 2:
             raise RuntimeError('Forward Propagation Error: Invalid Neural Network (too few layers)')
@@ -210,33 +210,52 @@ class NeuralNetwork:
 
         train_errors_epoches = []
         val_errors_epoches = []
-        networks = []
+        best_fitting_network = self
 
         for _ in range(epoches):
-            networks.append(copy.deepcopy(self))
-            outputs = []
+
+            # resetting variables for each epoque
             train_error = 0
             val_error = 0
+
+            outputs = []
+            sum_derivates = []
+            for i in range(0, len(self.layers), 2):
+                sum_derivates.append(np.zeros((self.layers[i].output_dim, self.layers[i].input_dim)))
+
+            # running over training set
             for i in range(len(train_X)):
+
                 outputs.append(self.forward_propagation(train_X[i]))
                 deltas = self.back_propagation(outputs[i], train_Y[i])
                 derivates = self.compute_derivates(deltas)
-                self.update_weights(derivates, deltas, lr)
-                
+
+                if mod == 'O':   
+                    self.update_weights(derivates, deltas, lr)
+                else:
+                    for i in range(len(derivates)):
+                        sum_derivates[i] = np.add(sum_derivates[i], derivates[i])
+
+            if mod == 'B':
+                self.update_weights(sum_derivates, deltas, lr)  
+
+            # computing error on training and validation set
             for i in range(len(train_X)):
                 train_error += self.loss(outputs[i], train_Y[i])
             train_errors_epoches.append(train_error)
 
             for i in range(len(val_X)):
                 val_error += self.loss(self.forward_propagation(val_X[i]), val_Y[i])
+            if len(val_errors_epoches) == 0:
+                best_fitting_network = self
+            elif val_error < val_errors_epoches[-1]:
+                best_fitting_network = copy.deepcopy(self)
             val_errors_epoches.append(val_error)
 
         train_errors_epoches = np.array(train_errors_epoches)
         val_errors_epoches = np.array(val_errors_epoches)
 
-        best_network = networks[np.argmin(val_error)]
-
-        return best_network, train_errors_epoches, val_errors_epoches
+        return best_fitting_network, train_errors_epoches, val_errors_epoches
     
     
 '''
@@ -310,9 +329,9 @@ def main():
 
 
     #start learning
-    epoches = 5
+    epoches = 50
     lr = 0.1
-    best_network, train_error, val_error = NN.learn(training_set[0:10000], training_labels[0:10000], validation_set, validation_labels, epoches, lr)
+    best_network, train_error, val_error = NN.learn(training_set[0:1000], training_labels[0:1000], validation_set, validation_labels, epoches, lr)
 
     
     #test with random samples
@@ -330,8 +349,8 @@ def main():
     x_plot = np.arange(epoches)
     plt.xlabel('Epoches')
     plt.ylabel('Error')
-    plt.plot(x_plot, train_error, marker='o', color='g', label='E_t')
-    plt.plot(x_plot, val_error, marker = '*', color='y', label = 'E_v')
+    plt.plot(x_plot, train_error, color='g', label='Training Error')
+    plt.plot(x_plot, val_error, color='y', label='Validation Error')
 
     plt.legend()
     plt.show()
