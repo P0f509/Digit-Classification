@@ -1,10 +1,10 @@
 import numpy as np
 import cv2
-#import copy
+import matplotlib.pyplot as plt
+import copy
 from scipy.special import softmax, expit
 from sklearn.utils import shuffle
 from keras.datasets import mnist
-#from matplotlib import pyplot
 
 '''
     Activation & Error Functions
@@ -196,7 +196,7 @@ class NeuralNetwork:
             self.layers[i].update_weights(derivates[j], deltas[j], lr)
 
  
-    def learn(self, train_X, train_Y, epoches, lr):
+    def learn(self, train_X, train_Y, val_X, val_Y, epoches, lr):
 
         if len(self.layers) < 2:
             raise RuntimeError('Forward Propagation Error: Invalid Neural Network (too few layers)')
@@ -205,22 +205,38 @@ class NeuralNetwork:
             raise RuntimeError('Forward Propagation Error: Invalid Neural Network (last layer is not a processing layer)')
         
         if epoches < 1:
-            raise ValueError('Learning Error: par "epoches" must be a positive integer')
+            raise ValueError('Learning Error: parameter "epoches" must be a positive integer')
         
 
-        errors_epoches = []
-        for e in range(epoches):
-            error = 0
+        train_errors_epoches = []
+        val_errors_epoches = []
+        networks = []
+
+        for _ in range(epoches):
+            networks.append(copy.deepcopy(self))
+            outputs = []
+            train_error = 0
+            val_error = 0
             for i in range(len(train_X)):
-                output = self.forward_propagation(train_X[i])
-                deltas = self.back_propagation(output, train_Y[i])
+                outputs.append(self.forward_propagation(train_X[i]))
+                deltas = self.back_propagation(outputs[i], train_Y[i])
                 derivates = self.compute_derivates(deltas)
-                error += self.loss(output, train_Y[i])
                 self.update_weights(derivates, deltas, lr)
                 
-            errors_epoches.append(error)
+            for i in range(len(train_X)):
+                train_error += self.loss(outputs[i], train_Y[i])
+            train_errors_epoches.append(train_error)
 
-        return errors_epoches
+            for i in range(len(val_X)):
+                val_error += self.loss(self.forward_propagation(val_X[i]), val_Y[i])
+            val_errors_epoches.append(val_error)
+
+        train_errors_epoches = np.array(train_errors_epoches)
+        val_errors_epoches = np.array(val_errors_epoches)
+
+        best_network = networks[np.argmin(val_error)]
+
+        return best_network, train_errors_epoches, val_errors_epoches
     
     
 '''
@@ -254,34 +270,37 @@ def main():
     #load dataset
     (train_X, train_y), (test_X, test_y) = mnist.load_data()
 
+
     #prepare training & test data
     img_scale = 14
     train_data = clean_data(train_X, img_scale)
     test_data = clean_data(test_X, img_scale)
+
     
     #encode labels in one-hot encoding
     train_labels = encode_labels(train_y)
     test_labels = encode_labels(test_y)
 
+
     #shuffle data 
     train_data, train_labels = shuffle(train_data, train_labels)
 
-    #divide data into training & validation
+    #divide data into training & validation set
     ratio = 0.8
     train_len = int(ratio * len(train_data))
 
-    valid_data = train_data[train_len:]
-    valid_labels = train_labels[train_len:]
+    training_set = train_data[0:train_len]
+    training_labels = train_labels[0:train_len]
 
-    train_data = train_data[0:train_len]
-    train_labels = train_labels[0:train_len]
-    
+    validation_set = train_data[train_len:]
+    validation_labels = train_labels[train_len:]
+
         
     #inizialize Neural Network
     NN = NeuralNetwork(cross_entropy_softmax, cross_entropy_softmax_prime)
-    layer1 = ConnectionLayer(img_scale * img_scale, 20)
-    layer2 = ActivationLayer(20, sigmoid, sigmoid_prime)
-    layer3 = ConnectionLayer(20, 10)
+    layer1 = ConnectionLayer(img_scale * img_scale, 10)
+    layer2 = ActivationLayer(10, sigmoid, sigmoid_prime)
+    layer3 = ConnectionLayer(10, 10)
     layer4 = ActivationLayer(10, sigmoid, sigmoid_prime)
 
     NN.add_layer(layer1)
@@ -289,23 +308,34 @@ def main():
     NN.add_layer(layer3)
     NN.add_layer(layer4)
 
-    #start learning
-    NN.learn(train_data[0:10000], train_labels[0:10000], 1000, 0.1)
 
+    #start learning
+    epoches = 5
+    lr = 0.1
+    best_network, train_error, val_error = NN.learn(training_set[0:10000], training_labels[0:10000], validation_set, validation_labels, epoches, lr)
+
+    
     #test with random samples
     np.set_printoptions(suppress=True, precision=2)
-    print("PREDICTED:", NN.forward_propagation(train_data[55655]))
-    print("LABEL:", train_labels[55655])
-    print("PREDICTED:", NN.forward_propagation(train_data[234]))
-    print("LABEL:", train_labels[234])
-    print("PREDICTED:", NN.forward_propagation(train_data[9055]))
-    print("LABEL:", train_labels[9055])
-    print("PREDICTED:", NN.forward_propagation(train_data[16745]))
-    print("LABEL:", train_labels[16745])
-    print("PREDICTED:", NN.forward_propagation(train_data[23896]))
-    print("LABEL:", train_labels[23896])
+    print("PREDICTED:", NN.forward_propagation(validation_set[154]))
+    print("LABEL:", validation_labels[154])
+    print("PREDICTED:", NN.forward_propagation(validation_set[1234]))
+    print("LABEL:", validation_labels[1234])
+    print("PREDICTED:", NN.forward_propagation(validation_set[3254]))
+    print("LABEL:", validation_labels[3254])
+    print("PREDICTED:", NN.forward_propagation(validation_set[1]))
+    print("LABEL:", validation_labels[1])
+    
 
+    x_plot = np.arange(epoches)
+    plt.xlabel('Epoches')
+    plt.ylabel('Error')
+    plt.plot(x_plot, train_error, marker='o', color='g', label='E_t')
+    plt.plot(x_plot, val_error, marker = '*', color='y', label = 'E_v')
 
+    plt.legend()
+    plt.show()
+    
 
 if __name__=="__main__":
     main()
