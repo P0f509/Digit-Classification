@@ -1,7 +1,6 @@
 import numpy as np
-import cv2
 import matplotlib.pyplot as plt
-import copy
+import cv2, copy
 from scipy.special import softmax, expit
 from sklearn.utils import shuffle
 from keras.datasets import mnist
@@ -220,8 +219,11 @@ class NeuralNetwork:
 
             outputs = []
             sum_derivates = []
+            sum_deltas = []
             for i in range(0, len(self.layers), 2):
                 sum_derivates.append(np.zeros((self.layers[i].output_dim, self.layers[i].input_dim)))
+                sum_deltas.append(np.zeros((self.layers[i].output_dim, 1)))
+
 
             # running over training set
             for i in range(len(train_X)):
@@ -233,11 +235,12 @@ class NeuralNetwork:
                 if mod == 'O':   
                     self.update_weights(derivates, deltas, lr)
                 else:
-                    for i in range(len(derivates)):
+                    for i in range(len(self.layers)//2):
                         sum_derivates[i] = np.add(sum_derivates[i], derivates[i])
+                        sum_deltas[i] = np.add(sum_deltas[i], deltas[i])
 
             if mod == 'B':
-                self.update_weights(sum_derivates, deltas, lr)  
+                self.update_weights(sum_derivates, sum_deltas, lr)  
 
             # computing error on training and validation set
             for i in range(len(train_X)):
@@ -329,21 +332,21 @@ def main():
 
 
     #start learning
-    epoches = 50
-    lr = 0.1
-    best_network, train_error, val_error = NN.learn(training_set[0:1000], training_labels[0:1000], validation_set, validation_labels, epoches, lr)
+    epoches = 1000
+    lr = 0.01
+    best_network, train_error, val_error = NN.learn(training_set, training_labels, validation_set, validation_labels, epoches, lr, mod='B')
 
     
-    #test with random samples
+    #test with random samples on the best performing network
     np.set_printoptions(suppress=True, precision=2)
-    print("PREDICTED:", NN.forward_propagation(validation_set[154]))
-    print("LABEL:", validation_labels[154])
-    print("PREDICTED:", NN.forward_propagation(validation_set[1234]))
-    print("LABEL:", validation_labels[1234])
-    print("PREDICTED:", NN.forward_propagation(validation_set[3254]))
-    print("LABEL:", validation_labels[3254])
-    print("PREDICTED:", NN.forward_propagation(validation_set[1]))
-    print("LABEL:", validation_labels[1])
+    print("PREDICTED:", best_network.forward_propagation(validation_set[154]).T)
+    print("LABEL:", validation_labels[154].T)
+    print("PREDICTED:", best_network.forward_propagation(validation_set[1234]).T)
+    print("LABEL:", validation_labels[1234].T)
+    print("PREDICTED:", best_network.forward_propagation(validation_set[3254]).T)
+    print("LABEL:", validation_labels[3254].T)
+    print("PREDICTED:", best_network.forward_propagation(validation_set[1]).T)
+    print("LABEL:", validation_labels[1].T)
     
 
     x_plot = np.arange(epoches)
