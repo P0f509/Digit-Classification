@@ -94,6 +94,9 @@ class ConnectionLayer:
         self.weights = self.weights - (lr * derivates)
         self.bias = self.bias - (lr * deltas)
 
+    def update_weights_rprop(self, derivates, deltas, weights_increment, biases_increment):
+        self.weights = self.weights - (np.sign(derivates) * weights_increment)
+        self.bias = self.bias - (np.sign(deltas) * biases_increment)
 
     
 '''
@@ -194,6 +197,12 @@ class NeuralNetwork:
             j = int(i/2)
             self.layers[i].update_weights(derivates[j], deltas[j], lr)
 
+
+    def update_weights_rprop(self, derivates, deltas, weights_increment, biases_increment):
+        for i in range(0, len(self.layers), 2):
+            j = int(i/2)
+            self.layers[i].update_weights_rprop(derivates[j], deltas[j], weights_increment[j], biases_increment[j])
+
  
     def learn(self, train_X, train_Y, val_X, val_Y, epoches, lr, mod='B'):
 
@@ -261,6 +270,105 @@ class NeuralNetwork:
         return best_fitting_network, train_errors_epoches, val_errors_epoches
     
 
+
+    def learn_rprop(self, train_X, train_Y, val_X, val_Y, epoches, eta_plus, eta_minus, delta_zero, delta_max, delta_min):
+
+        if len(self.layers) < 2:
+            raise RuntimeError('Forward Propagation Error: Invalid Neural Network (too few layers)')
+        
+        if isinstance(self.layers[-1], ConnectionLayer):
+            raise RuntimeError('Forward Propagation Error: Invalid Neural Network (last layer is not a processing layer)')
+        
+        if epoches < 1:
+            raise ValueError('Learning Error: parameter "epoches" must be a positive integer')
+        
+        train_errors_epoches = []
+        val_errors_epoches = []
+        best_fitting_network = self
+
+        prev_derivates = []
+        prev_deltas = []
+        prev_delta_increments_weights = []
+        prev_delta_increments_biases = []
+        delta_min_weights = []
+        delta_max_weights = []
+        delta_min_biases = []
+        delta_max_biases = []
+
+        for i in range(0, len(self.layers), 2):
+            prev_derivates.append(np.zeros((self.layers[i].output_dim, self.layers[i].input_dim)))
+            prev_deltas.append(np.zeros((self.layers[i].output_dim, 1)))
+            prev_delta_increments_weights.append(np.full((self.layers[i].output_dim, self.layers[i].input_dim), delta_zero))
+            prev_delta_increments_biases.append(np.full((self.layers[i].output_dim, 1), delta_zero))
+            delta_min_weights.append(np.full((self.layers[i].output_dim, self.layers[i].input_dim), delta_min))
+            delta_min_biases.append(np.full((self.layers[i].output_dim, 1), delta_min))
+            delta_max_weights.append(np.full((self.layers[i].output_dim, self.layers[i].input_dim), delta_max))
+            delta_max_biases.append(np.full((self.layers[i].output_dim, 1), delta_max))
+
+
+        for _ in range(epoches):
+
+            # resetting variables for each epoque
+            train_error = 0
+            val_error = 0
+
+            outputs = []
+            curr_derivates = []
+            curr_deltas = []
+            curr_delta_increments_weights = []
+            curr_delta_increments_biases = []
+            
+            for i in range(0, len(self.layers), 2):
+                curr_derivates.append(np.zeros((self.layers[i].output_dim, self.layers[i].input_dim)))
+                curr_deltas.append(np.zeros((self.layers[i].output_dim, 1)))              
+
+            # running over training set
+            for i in range(len(train_X)):
+
+                outputs.append(self.forward_propagation(train_X[i]))
+                deltas = self.back_propagation(outputs[i], train_Y[i])
+                derivates = self.compute_derivates(deltas)
+               
+                for i in range(len(self.layers)//2):
+                    curr_derivates[i] = np.add(curr_derivates[i], derivates[i])
+                    curr_deltas[i] = np.add(curr_deltas[i], deltas[i])
+
+            #update weights
+            for i in range(len(curr_derivates)):
+                curr_delta_increments_weights.append(np.where(curr_derivates[i] * prev_derivates[i] == 0, \
+                    prev_delta_increments_weights[i], \
+                    np.where(curr_derivates[i] * prev_derivates[i] > 0, \
+                    np.minimum(eta_plus * prev_delta_increments_weights[i], delta_max_weights[i]), \
+                    np.maximum(eta_minus * prev_delta_increments_weights[i], delta_min_weights[i]))))
+                
+                curr_delta_increments_biases.append(np.where(curr_deltas[i] * prev_deltas[i] == 0, \
+                    prev_delta_increments_biases[i], \
+                    np.where(curr_deltas[i] * prev_deltas[i] > 0, \
+                    np.minimum(eta_plus * prev_delta_increments_biases[i], delta_max_biases[i]), \
+                    np.maximum(eta_minus * prev_delta_increments_biases[i], delta_min_biases[i]))))
+            
+            self.update_weights_rprop(curr_derivates, curr_deltas, curr_delta_increments_weights, curr_delta_increments_biases)
+
+
+            # computing error on training and validation set
+            for i in range(len(train_X)):
+                train_error += self.loss(outputs[i], train_Y[i])
+            train_errors_epoches.append(train_error)
+
+            for i in range(len(val_X)):
+                val_error += self.loss(self.forward_propagation(val_X[i]), val_Y[i])
+            if len(val_errors_epoches) == 0:
+                best_fitting_network = self
+            elif val_error < val_errors_epoches[-1]:
+                best_fitting_network = copy.deepcopy(self)
+            val_errors_epoches.append(val_error)
+
+        train_errors_epoches = np.array(train_errors_epoches)
+        val_errors_epoches = np.array(val_errors_epoches)
+
+        return best_fitting_network, train_errors_epoches, val_errors_epoches
+    
+
     def accuracy(self, test_X, test_Y):
         correct_answers = 0
         for i in range(len(test_X)):
@@ -283,6 +391,7 @@ def clean_data(x, img_scale):
         data[i] = (img.reshape((img_scale * img_scale, 1)))
     return data
 
+
 def encode_labels(y):
     labels = np.empty((y.shape[0], 10, 1))
     for i in range(len(y)):
@@ -290,6 +399,28 @@ def encode_labels(y):
         label[y[i]] = 1
         labels[i] = label
     return labels
+
+
+def create_network(input_dim, output_dim, hidden_layers_num, neurons_num, act_fun, act_fun_prime, loss, loss_prime):
+
+    NN = NeuralNetwork(loss, loss_prime)
+
+    layers = []
+
+    layers.append(ConnectionLayer(input_dim, neurons_num[0]))
+    layers.append(ActivationLayer(neurons_num[0], act_fun[0], act_fun_prime[0]))
+
+    for i in range(1, hidden_layers_num):
+        layers.append(ConnectionLayer(neurons_num[i-1], neurons_num[i]))
+        layers.append(ActivationLayer(neurons_num[i], act_fun[i], act_fun_prime[i]))
+
+    layers.append(ConnectionLayer(neurons_num[-1], output_dim))
+    layers.append(ActivationLayer(output_dim, act_fun[-1], act_fun_prime[-1]))
+
+    for layer in layers:
+        NN.add_layer(layer)
+
+    return NN
     
 
 '''
@@ -327,25 +458,39 @@ def main():
     validation_set = train_data[train_len:]
     validation_labels = train_labels[train_len:]
 
-        
+
+    # NN = create_network(img_scale * img_scale, 10, 2, [40, 20], [relu, relu, sigmoid], [relu_prime, relu_prime, sigmoid_prime], cross_entropy_softmax, cross_entropy_softmax_prime)
+    
+    
     #inizialize Neural Network
     NN = NeuralNetwork(cross_entropy_softmax, cross_entropy_softmax_prime)
-    layer1 = ConnectionLayer(img_scale * img_scale, 10)
-    layer2 = ActivationLayer(10, sigmoid, sigmoid_prime)
-    layer3 = ConnectionLayer(10, 10)
+    layer1 = ConnectionLayer(img_scale * img_scale, 20)
+    layer2 = ActivationLayer(20, sigmoid, sigmoid_prime)
+    layer3 = ConnectionLayer(20, 10)
     layer4 = ActivationLayer(10, sigmoid, sigmoid_prime)
 
     NN.add_layer(layer1)
     NN.add_layer(layer2)
     NN.add_layer(layer3)
     NN.add_layer(layer4)
+    
 
+    #start learning (rprop)
+    epoches = 1000
+    eta_plus = 1.2
+    eta_minus = 0.5
+    delta_zero = 0.5
+    delta_min = 0
+    delta_max = 50
+    best_network, train_error, val_error = NN.learn_rprop(training_set[0:30000], training_labels[0:30000], validation_set[0:12000], validation_labels[0:12000], \
+                                                          epoches, eta_plus, eta_minus, delta_zero, delta_max, delta_min)
 
-    #start learning
+    '''
+    #start learning (gradient descent)
     epoches = 500
     lr = 0.01
     best_network, train_error, val_error = NN.learn(training_set[0:30000], training_labels[0:30000], validation_set, validation_labels, epoches, lr, mod='B')
-
+    '''
     
     #test with random samples on the best performing network
     np.set_printoptions(suppress=True, precision=2)
@@ -367,6 +512,9 @@ def main():
 
     plt.legend()
     plt.show()
+
+    print("Accuracy:", best_network.accuracy(test_data, test_labels))
+
     
 
 if __name__=="__main__":
