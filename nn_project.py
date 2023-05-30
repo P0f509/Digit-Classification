@@ -260,6 +260,16 @@ class NeuralNetwork:
 
         return best_fitting_network, train_errors_epoches, val_errors_epoches
     
+
+    def accuracy(self, test_X, test_Y):
+        correct_answers = 0
+        for i in range(len(test_X)):
+            output = self.forward_propagation(test_X[i])
+            output = softmax(output)
+            if np.argmax(output) == np.argmax(test_Y[i]):
+                correct_answers += 1
+        return correct_answers / len(test_X)
+    
     
 '''
     Utility Functions 
@@ -332,9 +342,9 @@ def main():
 
 
     #start learning
-    epoches = 1000
+    epoches = 500
     lr = 0.01
-    best_network, train_error, val_error = NN.learn(training_set, training_labels, validation_set, validation_labels, epoches, lr, mod='B')
+    best_network, train_error, val_error = NN.learn(training_set[0:30000], training_labels[0:30000], validation_set, validation_labels, epoches, lr, mod='B')
 
     
     #test with random samples on the best performing network
