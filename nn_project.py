@@ -94,9 +94,10 @@ class ConnectionLayer:
         self.weights = self.weights - (lr * derivates)
         self.bias = self.bias - (lr * deltas)
 
+
     def update_weights_rprop(self, derivates, deltas, weights_increment, biases_increment):
-        self.weights = self.weights - (np.sign(derivates) * weights_increment)
-        self.bias = self.bias - (np.sign(deltas) * biases_increment)
+        self.weights = self.weights - (np.multiply(np.sign(derivates), weights_increment))
+        self.bias = self.bias - (np.multiply(np.sign(deltas), biases_increment))
 
     
 '''
@@ -128,8 +129,7 @@ class ActivationLayer:
     def backward_step(self, delta):
         return np.multiply(self.activation_fun_prime(self.input), delta)
     
-    
-    
+     
 '''
     This class represents a feed forward neural network with multiple layers
 '''
@@ -325,7 +325,7 @@ class NeuralNetwork:
             # running over training set
             for i in range(len(train_X)):
 
-                outputs.append(self.forward_propagation(train_X[i]))
+                outputs.append(softmax(self.forward_propagation(train_X[i])))
                 deltas = self.back_propagation(outputs[i], train_Y[i])
                 derivates = self.compute_derivates(deltas)
                
@@ -334,7 +334,7 @@ class NeuralNetwork:
                     curr_deltas[i] = np.add(curr_deltas[i], deltas[i])
 
             #update weights
-            for i in range(len(curr_derivates)):
+            for i in range(len(self.layers)//2):
                 curr_delta_increments_weights.append(np.where(curr_derivates[i] * prev_derivates[i] == 0, \
                     prev_delta_increments_weights[i], \
                     np.where(curr_derivates[i] * prev_derivates[i] > 0, \
@@ -346,9 +346,14 @@ class NeuralNetwork:
                     np.where(curr_deltas[i] * prev_deltas[i] > 0, \
                     np.minimum(eta_plus * prev_delta_increments_biases[i], delta_max_biases[i]), \
                     np.maximum(eta_minus * prev_delta_increments_biases[i], delta_min_biases[i]))))
-            
+                 
             self.update_weights_rprop(curr_derivates, curr_deltas, curr_delta_increments_weights, curr_delta_increments_biases)
 
+            #update previous derivates and increments
+            prev_delta_increments_weights = curr_delta_increments_weights
+            prev_delta_increments_biases = curr_delta_increments_biases
+            prev_derivates = curr_derivates
+            prev_deltas = curr_deltas
 
             # computing error on training and validation set
             for i in range(len(train_X)):
@@ -356,7 +361,7 @@ class NeuralNetwork:
             train_errors_epoches.append(train_error)
 
             for i in range(len(val_X)):
-                val_error += self.loss(self.forward_propagation(val_X[i]), val_Y[i])
+                val_error += self.loss(softmax(self.forward_propagation(val_X[i])), val_Y[i])
             if len(val_errors_epoches) == 0:
                 best_fitting_network = self
             elif val_error < val_errors_epoches[-1]:
@@ -476,13 +481,13 @@ def main():
     
 
     #start learning (rprop)
-    epoches = 1000
+    epoches = 500
     eta_plus = 1.2
     eta_minus = 0.5
     delta_zero = 0.5
     delta_min = 0
     delta_max = 50
-    best_network, train_error, val_error = NN.learn_rprop(training_set[0:30000], training_labels[0:30000], validation_set[0:12000], validation_labels[0:12000], \
+    best_network, train_error, val_error = NN.learn_rprop(training_set[0:10000], training_labels[0:10000], validation_set[0:2000], validation_labels[0:2000], \
                                                           epoches, eta_plus, eta_minus, delta_zero, delta_max, delta_min)
 
     '''
