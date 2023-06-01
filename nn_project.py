@@ -31,6 +31,21 @@ def relu_prime(x):
     return (x > 0).astype(x.dtype)
 
 
+def leaky_relu(x):
+    return np.maximum(0.01 * x, x)
+
+def leaky_relu_prime(x):
+    return np.where(x > 0, 1, 0.01)
+
+
+def tanh(x):
+    return np.sinh(x) / np.cosh(x)
+
+def tanh_prime(x):
+    z = tanh(x)
+    return 1 - (z**2)
+
+
 def sum_of_square(output, target):
     return 0.5 * np.sum(np.square(output - target))
 
@@ -325,7 +340,7 @@ class NeuralNetwork:
             # running over training set
             for i in range(len(train_X)):
 
-                outputs.append(softmax(self.forward_propagation(train_X[i])))
+                outputs.append(self.forward_propagation(train_X[i]))
                 deltas = self.back_propagation(outputs[i], train_Y[i])
                 derivates = self.compute_derivates(deltas)
                
@@ -361,7 +376,7 @@ class NeuralNetwork:
             train_errors_epoches.append(train_error)
 
             for i in range(len(val_X)):
-                val_error += self.loss(softmax(self.forward_propagation(val_X[i])), val_Y[i])
+                val_error += self.loss(self.forward_propagation(val_X[i]), val_Y[i])
             if len(val_errors_epoches) == 0:
                 best_fitting_network = self
             elif val_error < val_errors_epoches[-1]:
@@ -464,9 +479,9 @@ def main():
     validation_labels = train_labels[train_len:]
 
 
-    # NN = create_network(img_scale * img_scale, 10, 2, [40, 20], [relu, relu, sigmoid], [relu_prime, relu_prime, sigmoid_prime], cross_entropy_softmax, cross_entropy_softmax_prime)
+    NN = create_network(img_scale * img_scale, 10, 2, [40, 20], [tanh, tanh, identity], [tanh_prime, tanh_prime, identity_prime], cross_entropy_softmax, cross_entropy_softmax_prime)
     
-    
+    '''    
     #inizialize Neural Network
     NN = NeuralNetwork(cross_entropy_softmax, cross_entropy_softmax_prime)
     layer1 = ConnectionLayer(img_scale * img_scale, 20)
@@ -478,16 +493,16 @@ def main():
     NN.add_layer(layer2)
     NN.add_layer(layer3)
     NN.add_layer(layer4)
-    
+    '''
 
     #start learning (rprop)
-    epoches = 500
+    epoches = 100
     eta_plus = 1.2
     eta_minus = 0.5
     delta_zero = 0.5
     delta_min = 0
     delta_max = 50
-    best_network, train_error, val_error = NN.learn_rprop(training_set[0:10000], training_labels[0:10000], validation_set[0:2000], validation_labels[0:2000], \
+    best_network, train_error, val_error = NN.learn_rprop(training_set, training_labels, validation_set, validation_labels, \
                                                           epoches, eta_plus, eta_minus, delta_zero, delta_max, delta_min)
 
     '''
@@ -499,13 +514,13 @@ def main():
     
     #test with random samples on the best performing network
     np.set_printoptions(suppress=True, precision=2)
-    print("PREDICTED:", best_network.forward_propagation(validation_set[154]).T)
+    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[154]).T))
     print("LABEL:", validation_labels[154].T)
-    print("PREDICTED:", best_network.forward_propagation(validation_set[1234]).T)
+    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[1234]).T))
     print("LABEL:", validation_labels[1234].T)
-    print("PREDICTED:", best_network.forward_propagation(validation_set[3254]).T)
+    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[3254]).T))
     print("LABEL:", validation_labels[3254].T)
-    print("PREDICTED:", best_network.forward_propagation(validation_set[1]).T)
+    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[1]).T))
     print("LABEL:", validation_labels[1].T)
     
 
