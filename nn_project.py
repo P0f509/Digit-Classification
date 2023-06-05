@@ -39,7 +39,7 @@ def leaky_relu_prime(x):
 
 
 def tanh(x):
-    return np.sinh(x) / np.cosh(x)
+    return np.tanh(x)
 
 def tanh_prime(x):
     z = tanh(x)
@@ -77,8 +77,8 @@ class ConnectionLayer:
         Constructor __init__
         - input_dim: number of neurons of previous layer
         - output_dim: number of neurons of next layer
-        - weights: matrix of weights W^l [output_dim * input_dim] 
-        - bias: matrix of biases B^l [output_dim * 1]
+        - weights: matrix of weights W [output_dim * input_dim] 
+        - bias: matrix of biases B [output_dim * 1]
     '''
     def __init__(self, input_dim, output_dim):
         self.input_dim = input_dim
@@ -138,6 +138,7 @@ class ActivationLayer:
         
         self.input = input_data
         self.output = self.activation_fun(input_data)
+
         return self.output
     
 
@@ -178,7 +179,6 @@ class NeuralNetwork:
         output = train_data
         for layer in self.layers:
             output = layer.forward_step(output)
-
         return output
     
 
@@ -234,8 +234,9 @@ class NeuralNetwork:
         train_errors_epoches = []
         val_errors_epoches = []
         best_fitting_network = self
+        min_epoche = 0
 
-        for _ in range(epoches):
+        for e in range(epoches):
 
             # resetting variables for each epoque
             train_error = 0
@@ -277,12 +278,13 @@ class NeuralNetwork:
                 best_fitting_network = self
             elif val_error < val_errors_epoches[-1]:
                 best_fitting_network = copy.deepcopy(self)
+                min_epoche = e
             val_errors_epoches.append(val_error)
 
         train_errors_epoches = np.array(train_errors_epoches)
         val_errors_epoches = np.array(val_errors_epoches)
 
-        return best_fitting_network, train_errors_epoches, val_errors_epoches
+        return min_epoche, best_fitting_network, train_errors_epoches, val_errors_epoches
     
 
 
@@ -300,6 +302,7 @@ class NeuralNetwork:
         train_errors_epoches = []
         val_errors_epoches = []
         best_fitting_network = self
+        min_epoche = 0
 
         prev_derivates = []
         prev_deltas = []
@@ -321,9 +324,9 @@ class NeuralNetwork:
             delta_max_biases.append(np.full((self.layers[i].output_dim, 1), delta_max))
 
 
-        for _ in range(epoches):
+        for e in range(epoches):
 
-            # resetting variables for each epoque
+            # resetting variables for each epoches
             train_error = 0
             val_error = 0
 
@@ -381,12 +384,13 @@ class NeuralNetwork:
                 best_fitting_network = self
             elif val_error < val_errors_epoches[-1]:
                 best_fitting_network = copy.deepcopy(self)
+                min_epoche = e
             val_errors_epoches.append(val_error)
 
         train_errors_epoches = np.array(train_errors_epoches)
         val_errors_epoches = np.array(val_errors_epoches)
 
-        return best_fitting_network, train_errors_epoches, val_errors_epoches
+        return min_epoche, best_fitting_network, train_errors_epoches, val_errors_epoches
     
 
     def accuracy(self, test_X, test_Y):
@@ -421,26 +425,25 @@ def encode_labels(y):
     return labels
 
 
-def create_network(input_dim, output_dim, hidden_layers_num, neurons_num, act_fun, act_fun_prime, loss, loss_prime):
-
+def create_network(neurons_num, act_fun, act_fun_prime, loss, loss_prime):
     NN = NeuralNetwork(loss, loss_prime)
-
-    layers = []
-
-    layers.append(ConnectionLayer(input_dim, neurons_num[0]))
-    layers.append(ActivationLayer(neurons_num[0], act_fun[0], act_fun_prime[0]))
-
-    for i in range(1, hidden_layers_num):
-        layers.append(ConnectionLayer(neurons_num[i-1], neurons_num[i]))
-        layers.append(ActivationLayer(neurons_num[i], act_fun[i], act_fun_prime[i]))
-
-    layers.append(ConnectionLayer(neurons_num[-1], output_dim))
-    layers.append(ActivationLayer(output_dim, act_fun[-1], act_fun_prime[-1]))
-
-    for layer in layers:
-        NN.add_layer(layer)
-
+    for i in range(0, len(neurons_num)-1):
+        NN.add_layer(ConnectionLayer(neurons_num[i], neurons_num[i+1]))
+        NN.add_layer(ActivationLayer(neurons_num[i+1], act_fun[i], act_fun_prime[i]))
     return NN
+
+
+def plot_errors(epoches, train_error, val_error, min_epoche):
+    x_plot = np.arange(epoches)
+    plt.xlabel('Epoches')
+    plt.ylabel('Loss')
+    plt.plot(x_plot, train_error, color='g', label='Training Error')
+    plt.plot(x_plot, val_error, color='y', label='Validation Error', zorder=0)
+    plt.scatter(min_epoche, val_error[min_epoche], color='red', label='Minimum Error', s=10, zorder=1)
+
+    plt.legend()
+    plt.show()
+
     
 
 '''
@@ -479,30 +482,19 @@ def main():
     validation_labels = train_labels[train_len:]
 
 
-    NN = create_network(img_scale * img_scale, 10, 2, [40, 20], [tanh, tanh, identity], [tanh_prime, tanh_prime, identity_prime], cross_entropy_softmax, cross_entropy_softmax_prime)
-    
-    '''    
     #inizialize Neural Network
-    NN = NeuralNetwork(cross_entropy_softmax, cross_entropy_softmax_prime)
-    layer1 = ConnectionLayer(img_scale * img_scale, 20)
-    layer2 = ActivationLayer(20, sigmoid, sigmoid_prime)
-    layer3 = ConnectionLayer(20, 10)
-    layer4 = ActivationLayer(10, sigmoid, sigmoid_prime)
-
-    NN.add_layer(layer1)
-    NN.add_layer(layer2)
-    NN.add_layer(layer3)
-    NN.add_layer(layer4)
-    '''
+    NN = create_network([img_scale * img_scale, 40, 20, 10], [tanh, tanh, identity], [tanh_prime, tanh_prime, identity_prime], \
+                        cross_entropy_softmax, cross_entropy_softmax_prime)
+    
 
     #start learning (rprop)
-    epoches = 100
+    epoches = 11
     eta_plus = 1.2
     eta_minus = 0.5
     delta_zero = 0.5
     delta_min = 0
     delta_max = 50
-    best_network, train_error, val_error = NN.learn_rprop(training_set, training_labels, validation_set, validation_labels, \
+    min_epoche, best_network, train_error, val_error = NN.learn_rprop(training_set[0:10000], training_labels[0:10000], validation_set[0:2000], validation_labels[0:2000], \
                                                           epoches, eta_plus, eta_minus, delta_zero, delta_max, delta_min)
 
     '''
@@ -522,18 +514,10 @@ def main():
     print("LABEL:", validation_labels[3254].T)
     print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[1]).T))
     print("LABEL:", validation_labels[1].T)
-    
-
-    x_plot = np.arange(epoches)
-    plt.xlabel('Epoches')
-    plt.ylabel('Error')
-    plt.plot(x_plot, train_error, color='g', label='Training Error')
-    plt.plot(x_plot, val_error, color='y', label='Validation Error')
-
-    plt.legend()
-    plt.show()
 
     print("Accuracy:", best_network.accuracy(test_data, test_labels))
+
+    plot_errors(epoches, train_error, val_error, min_epoche)
 
     
 
