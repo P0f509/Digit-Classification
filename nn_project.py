@@ -28,7 +28,7 @@ def relu(x):
     return np.maximum(0, x)
 
 def relu_prime(x):
-    return (x > 0).astype(x.dtype)
+    return np.where(x < 0, 0, 1)
 
 
 def leaky_relu(x):
@@ -61,7 +61,7 @@ def cross_entropy_prime(output, target):
 
 
 def cross_entropy_softmax(output, target):
-    return cross_entropy(softmax(output), target)
+    return cross_entropy(softmax(output) + 1e-5, target)
 
 def cross_entropy_softmax_prime(output, target):
     return softmax(output) - target
@@ -308,20 +308,13 @@ class NeuralNetwork:
         prev_deltas = []
         prev_delta_increments_weights = []
         prev_delta_increments_biases = []
-        delta_min_weights = []
-        delta_max_weights = []
-        delta_min_biases = []
-        delta_max_biases = []
+
 
         for i in range(0, len(self.layers), 2):
             prev_derivates.append(np.zeros((self.layers[i].output_dim, self.layers[i].input_dim)))
             prev_deltas.append(np.zeros((self.layers[i].output_dim, 1)))
             prev_delta_increments_weights.append(np.full((self.layers[i].output_dim, self.layers[i].input_dim), delta_zero))
             prev_delta_increments_biases.append(np.full((self.layers[i].output_dim, 1), delta_zero))
-            delta_min_weights.append(np.full((self.layers[i].output_dim, self.layers[i].input_dim), delta_min))
-            delta_min_biases.append(np.full((self.layers[i].output_dim, 1), delta_min))
-            delta_max_weights.append(np.full((self.layers[i].output_dim, self.layers[i].input_dim), delta_max))
-            delta_max_biases.append(np.full((self.layers[i].output_dim, 1), delta_max))
 
 
         for e in range(epoches):
@@ -350,20 +343,26 @@ class NeuralNetwork:
                 for i in range(len(self.layers)//2):
                     curr_derivates[i] = np.add(curr_derivates[i], derivates[i])
                     curr_deltas[i] = np.add(curr_deltas[i], deltas[i])
-
+            
             #update weights
             for i in range(len(self.layers)//2):
+
+                weights_eta_plus = eta_plus * prev_delta_increments_weights[i]
+                weights_eta_minus = eta_minus * prev_delta_increments_weights[i]
+                biases_eta_plus = eta_plus * prev_delta_increments_biases[i]
+                biases_eta_minus = eta_minus * prev_delta_increments_biases[i]
+
                 curr_delta_increments_weights.append(np.where(curr_derivates[i] * prev_derivates[i] == 0, \
                     prev_delta_increments_weights[i], \
                     np.where(curr_derivates[i] * prev_derivates[i] > 0, \
-                    np.minimum(eta_plus * prev_delta_increments_weights[i], delta_max_weights[i]), \
-                    np.maximum(eta_minus * prev_delta_increments_weights[i], delta_min_weights[i]))))
+                    np.where(weights_eta_plus < delta_max, weights_eta_plus, delta_max), \
+                    np.where(weights_eta_minus > delta_min, weights_eta_minus, delta_min))))
                 
                 curr_delta_increments_biases.append(np.where(curr_deltas[i] * prev_deltas[i] == 0, \
                     prev_delta_increments_biases[i], \
                     np.where(curr_deltas[i] * prev_deltas[i] > 0, \
-                    np.minimum(eta_plus * prev_delta_increments_biases[i], delta_max_biases[i]), \
-                    np.maximum(eta_minus * prev_delta_increments_biases[i], delta_min_biases[i]))))
+                    np.where(biases_eta_plus < delta_max, biases_eta_plus, delta_max), \
+                    np.where(biases_eta_minus > delta_min, biases_eta_minus, delta_min))))
                  
             self.update_weights_rprop(curr_derivates, curr_deltas, curr_delta_increments_weights, curr_delta_increments_biases)
 
@@ -471,6 +470,7 @@ def main():
     #shuffle data 
     train_data, train_labels = shuffle(train_data, train_labels)
 
+
     #divide data into training & validation set
     ratio = 0.8
     train_len = int(ratio * len(train_data))
@@ -483,39 +483,42 @@ def main():
 
 
     #inizialize Neural Network
-    NN = create_network([img_scale * img_scale, 40, 20, 10], [tanh, tanh, identity], [tanh_prime, tanh_prime, identity_prime], \
+    neurons_number = [img_scale * img_scale, 10, 10, 10, 10, 10, 10]
+    activations = [relu, relu, relu, relu, relu, identity]
+    activations_prime = [relu_prime, relu_prime, relu_prime, relu_prime, relu_prime, identity_prime]
+    
+    NN = create_network(neurons_number, activations, activations_prime, \
                         cross_entropy_softmax, cross_entropy_softmax_prime)
     
 
     #start learning (rprop)
-    epoches = 11
+    epoches = 100
     eta_plus = 1.2
     eta_minus = 0.5
     delta_zero = 0.5
     delta_min = 0
     delta_max = 50
-    min_epoche, best_network, train_error, val_error = NN.learn_rprop(training_set[0:10000], training_labels[0:10000], validation_set[0:2000], validation_labels[0:2000], \
+    min_epoche, best_network, train_error, val_error = NN.learn_rprop(training_set[0:20000], training_labels[0:20000], validation_set[0:5000], validation_labels[0:5000], \
                                                           epoches, eta_plus, eta_minus, delta_zero, delta_max, delta_min)
-
-    '''
-    #start learning (gradient descent)
-    epoches = 500
-    lr = 0.01
-    best_network, train_error, val_error = NN.learn(training_set[0:30000], training_labels[0:30000], validation_set, validation_labels, epoches, lr, mod='B')
-    '''
+    
     
     #test with random samples on the best performing network
     np.set_printoptions(suppress=True, precision=2)
-    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[154]).T))
-    print("LABEL:", validation_labels[154].T)
-    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[1234]).T))
-    print("LABEL:", validation_labels[1234].T)
-    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[3254]).T))
-    print("LABEL:", validation_labels[3254].T)
-    print("PREDICTED:", softmax(best_network.forward_propagation(validation_set[1]).T))
-    print("LABEL:", validation_labels[1].T)
+    print("---------")
+    print("PREDICTED:", softmax(best_network.forward_propagation(test_data[154]).T))
+    print("LABEL    :", test_labels[154].T)
+    print("---------")
+    print("PREDICTED:", softmax(best_network.forward_propagation(test_data[1453]).T))
+    print("LABEL    :", test_labels[1453].T)
+    print("---------")
 
+
+    #results
     print("Accuracy:", best_network.accuracy(test_data, test_labels))
+    print("Runned over", epoches, "epoches")
+    print("Network Model:")
+    print("Neurons:", neurons_number)
+    print("Activations:", activations)
 
     plot_errors(epoches, train_error, val_error, min_epoche)
 
