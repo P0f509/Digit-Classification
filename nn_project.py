@@ -491,7 +491,7 @@ def main():
 
 
     #initialize Neural Network
-    neurons_number = [img_scale * img_scale, 40, 10]
+    neurons_number = [img_scale * img_scale, 20, 10]
     activations = [leaky_relu, identity]
     activations_prime = [leaky_relu_prime, identity_prime]
     
@@ -524,7 +524,7 @@ def main():
     #results
     print("Accuracy:", best_network.accuracy(test_data, test_labels))
     print("Runned over", epoches, "epoches")
-    print("Best performing network found at epoche:", min)
+    print("Best performing network found at epoche:", min_epoche)
     print("Network Model:")
     print("Neurons:", neurons_number)
     print("Activations:", activations)
