@@ -235,6 +235,7 @@ class NeuralNetwork:
         val_errors_epoches = []
         best_fitting_network = self
         min_epoche = 0
+        min_error = 0
 
         for e in range(epoches):
 
@@ -275,10 +276,13 @@ class NeuralNetwork:
             for i in range(len(val_X)):
                 val_error += self.loss(self.forward_propagation(val_X[i]), val_Y[i])
             if len(val_errors_epoches) == 0:
-                best_fitting_network = self
-            elif val_error < val_errors_epoches[-1]:
+                min_error = val_error
                 best_fitting_network = copy.deepcopy(self)
                 min_epoche = e
+            elif val_error < min_error:
+                best_fitting_network = copy.deepcopy(self)
+                min_epoche = e
+                min_error = val_error
             val_errors_epoches.append(val_error)
 
         train_errors_epoches = np.array(train_errors_epoches)
@@ -303,6 +307,7 @@ class NeuralNetwork:
         val_errors_epoches = []
         best_fitting_network = self
         min_epoche = 0
+        min_error = 0
 
         prev_derivates = []
         prev_deltas = []
@@ -380,10 +385,13 @@ class NeuralNetwork:
             for i in range(len(val_X)):
                 val_error += self.loss(self.forward_propagation(val_X[i]), val_Y[i])
             if len(val_errors_epoches) == 0:
-                best_fitting_network = self
-            elif val_error < val_errors_epoches[-1]:
+                min_error = val_error
                 best_fitting_network = copy.deepcopy(self)
                 min_epoche = e
+            elif val_error < min_error:
+                best_fitting_network = copy.deepcopy(self)
+                min_epoche = e
+                min_error = val_error
             val_errors_epoches.append(val_error)
 
         train_errors_epoches = np.array(train_errors_epoches)
@@ -482,17 +490,17 @@ def main():
     validation_labels = train_labels[train_len:]
 
 
-    #inizialize Neural Network
-    neurons_number = [img_scale * img_scale, 10, 10, 10, 10, 10, 10]
-    activations = [relu, relu, relu, relu, relu, identity]
-    activations_prime = [relu_prime, relu_prime, relu_prime, relu_prime, relu_prime, identity_prime]
+    #initialize Neural Network
+    neurons_number = [img_scale * img_scale, 40, 10]
+    activations = [leaky_relu, identity]
+    activations_prime = [leaky_relu_prime, identity_prime]
     
     NN = create_network(neurons_number, activations, activations_prime, \
                         cross_entropy_softmax, cross_entropy_softmax_prime)
     
 
     #start learning (rprop)
-    epoches = 100
+    epoches = 500
     eta_plus = 1.2
     eta_minus = 0.5
     delta_zero = 0.5
@@ -516,9 +524,11 @@ def main():
     #results
     print("Accuracy:", best_network.accuracy(test_data, test_labels))
     print("Runned over", epoches, "epoches")
+    print("Best performing network found at epoche:", min)
     print("Network Model:")
     print("Neurons:", neurons_number)
     print("Activations:", activations)
+
 
     plot_errors(epoches, train_error, val_error, min_epoche)
 
