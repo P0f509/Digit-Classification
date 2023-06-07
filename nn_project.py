@@ -414,7 +414,7 @@ class NeuralNetwork:
     Utility Functions 
 '''
 
-def clean_data(x, img_scale):
+def manipulate_data(x, img_scale):
     data = np.empty((x.shape[0], img_scale * img_scale, 1))
     for i in range(len(x)):
         img = x[i] / 255.0
@@ -466,8 +466,8 @@ def main():
 
     #prepare training & test data
     img_scale = 14
-    train_data = clean_data(train_X, img_scale)
-    test_data = clean_data(test_X, img_scale)
+    train_data = manipulate_data(train_X, img_scale)
+    test_data = manipulate_data(test_X, img_scale)
 
     
     #encode labels in one-hot encoding
@@ -491,7 +491,7 @@ def main():
 
 
     #initialize Neural Network
-    neurons_number = [img_scale * img_scale, 20, 10]
+    neurons_number = [img_scale * img_scale, 100, 10]
     activations = [leaky_relu, identity]
     activations_prime = [leaky_relu_prime, identity_prime]
     
