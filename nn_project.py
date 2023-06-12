@@ -434,7 +434,7 @@ def encode_labels(y):
 
 def create_network(neurons_num, act_fun, act_fun_prime, loss, loss_prime):
     NN = NeuralNetwork(loss, loss_prime)
-    for i in range(0, len(neurons_num)-1):
+    for i in range(len(neurons_num)-1):
         NN.add_layer(ConnectionLayer(neurons_num[i], neurons_num[i+1]))
         NN.add_layer(ActivationLayer(neurons_num[i+1], act_fun[i], act_fun_prime[i]))
     return NN
@@ -491,9 +491,9 @@ def main():
 
 
     #initialize Neural Network
-    neurons_number = [img_scale * img_scale, 100, 10]
-    activations = [leaky_relu, identity]
-    activations_prime = [leaky_relu_prime, identity_prime]
+    neurons_number = [img_scale * img_scale, 160, 120, 60, 40, 20, 10]   
+    activations = [leaky_relu, leaky_relu, leaky_relu, leaky_relu, leaky_relu, identity]                   
+    activations_prime = [leaky_relu_prime, leaky_relu_prime, leaky_relu_prime, leaky_relu_prime, leaky_relu_prime, identity_prime]
     
     NN = create_network(neurons_number, activations, activations_prime, \
                         cross_entropy_softmax, cross_entropy_softmax_prime)
